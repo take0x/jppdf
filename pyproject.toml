@@ -1,5 +1,5 @@
 [project]
-name = "jppdf"
+name = "pdfjp"
 version = "0.1.0"
 description = "Add your description here"
 authors = [
@@ -12,7 +12,7 @@ readme = "README.md"
 requires-python = ">= 3.8"
 
 [project.scripts]
-jppdf = "jppdf.cli:main"
+pdfjp = "pdfjp.cli:main"
 
 [build-system]
 requires = ["hatchling"]
@@ -29,7 +29,7 @@ dev-dependencies = [
 allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/jppdf"]
+packages = ["src/pdfjp"]
 
 [tool.mypy]
 strict = true

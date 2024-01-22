@@ -1,10 +1,14 @@
 import argparse
+import sys
 import time
-from logging import DEBUG, INFO, basicConfig, getLogger
+from io import BytesIO
+from logging import INFO, basicConfig, getLogger
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any
 
+import requests
+from pypdf import PdfReader
 from selenium.webdriver import Chrome, ChromeOptions
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as ec
@@ -13,6 +17,13 @@ from selenium.webdriver.support.wait import WebDriverWait
 # Use 117 until the following bug is fixed
 # https://github.com/SeleniumHQ/selenium/issues/13095
 BROWSER_VERSION = "117"
+
+# The timeout for the translation to finish
+TRANSLATION_TIMEOUT = 20
+
+logger = getLogger(__name__)
+logger.setLevel(INFO)
+basicConfig()
 
 
 class Options(ChromeOptions):
@@ -68,16 +79,12 @@ class Driver:
     url = "https://translate.google.co.jp/?hl=ja&sl=auto&tl=ja&op=docs"
 
     def __init__(self, path: Path, *, debug: bool = False) -> None:
-        self.logger = getLogger(__name__)
-        self.logger.setLevel(DEBUG if debug else INFO)
-        basicConfig()
-
         self.path = path
         self.path_ja = path.with_stem(f"{path.stem}_ja")
 
-        self.logger.info("Setting up...")
+        logger.info("Setting up...")
         self.options = Options(debug=debug)
-        self.logger.info("Launching...")
+        logger.info("Launching...")
         self.driver = Chrome(options=self.options)
 
     def __del__(self) -> None:
@@ -86,19 +93,26 @@ class Driver:
     def select_file(self) -> None:
         file_input = self.driver.find_element(By.NAME, "file")
         file_input.send_keys(str(self.path.resolve()))
-        self.logger.info("Selected: '%s'", self.path.name)
+        logger.info("Selected: '%s'", self.path.name)
 
-    def click(self, xpath: str) -> None:
-        wait = WebDriverWait(self.driver, 10)
+    def wait_button(self, xpath: str, timeout: int) -> None:
+        wait = WebDriverWait(self.driver, timeout)
         button = wait.until(ec.element_to_be_clickable((By.XPATH, xpath)))
         button.click()
 
     def translate(self) -> None:
+        # click the translate button
         xpath = "//button/span[text()='翻訳']"
-        self.click(xpath)
-        self.logger.info("Translating...")
+        button = self.driver.find_element(By.XPATH, xpath)
+        button.click()
 
-    def wait(self) -> None:
+        logger.info("Translating...")
+
+        # wait for the download button
+        xpath = "//button/span[text()='翻訳をダウンロード']"
+        self.wait_button(xpath, TRANSLATION_TIMEOUT)
+
+    def wait_to_finish(self) -> None:
         timeout = 10
         path = self.options.download_dir / self.path.name
 
@@ -113,29 +127,55 @@ class Driver:
             raise TimeoutError(msg)
 
     def save(self) -> None:
-        xpath = "//button/span[text()='翻訳をダウンロード']"
-        self.click(xpath)
-        self.logger.info("Saving as: '%s'", self.path_ja.name)
-        self.wait()
+        logger.info("Saving as: '%s'", self.path_ja.name)
+        self.wait_to_finish()
 
     def run(self) -> None:
         self.driver.get(Driver.url)
         self.select_file()
         self.translate()
         self.save()
-        self.logger.info("Done.")
+        logger.info("Done.")
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+        description="A tool to translate your PDF files into Japanese.",
+    )
     parser.add_argument("--debug", action="store_true", help="debug mode")
-    parser.add_argument("path", type=Path)
+    parser.add_argument("target", help="URL or path to PDF file")
     return parser.parse_args()
+
+
+def is_url(target: str) -> bool:
+    return target.startswith("http")
+
+
+def download(url: str) -> Path:
+    try:
+        res = requests.get(url, timeout=3)
+    except requests.exceptions.Timeout:
+        logger.exception("Timeout occurred")
+        sys.exit(1)
+
+    pdf = PdfReader(BytesIO(res.content))
+
+    if pdf.metadata is None:
+        logger.error("Failed to get the title from the PDF metadata.")
+        sys.exit(1)
+
+    logger.info("Title: %s", pdf.metadata.title)
+    basename = Path(url).name
+    filename = Path(basename if basename.endswith(".pdf") else f"{basename}.pdf")
+    filename.write_bytes(res.content)
+    return filename
 
 
 def main() -> None:
     args = parse_args()
-    driver = Driver(args.path, debug=args.debug)
+    target: str = args.target
+    path = download(target) if is_url(target) else Path(target)
+    driver = Driver(path, debug=args.debug)
     driver.run()
 
 

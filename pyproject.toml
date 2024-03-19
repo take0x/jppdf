@@ -1,7 +1,7 @@
 [project]
 name = "pdfjp"
 version = "0.1.0"
-description = "Add your description here"
+description = "A tool to translate your PDF files into Japanese"
 authors = [
     {name = "take0x"}
 ]

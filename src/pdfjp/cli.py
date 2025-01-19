@@ -14,10 +14,6 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.support.wait import WebDriverWait
 
-# Use 117 until the following bug is fixed
-# https://github.com/SeleniumHQ/selenium/issues/13095
-BROWSER_VERSION = "117"
-
 # The timeout for the translation to finish
 TRANSLATION_TIMEOUT = 20
 
@@ -51,7 +47,6 @@ class Options(ChromeOptions):
         self.add_argument("--disable-blink-features=AutomationControlled")
 
         # disable the logging
-        self.set_capability("browserVersion", BROWSER_VERSION)
         self.add_experimental_option("excludeSwitches", ["enable-logging"])
 
         self.add_experimental_option("prefs", prefs)
@@ -66,7 +61,6 @@ class Options(ChromeOptions):
     def make_normal_user_agent(self) -> None:
         options = ChromeOptions()
         options.add_argument("--headless=new")
-        options.set_capability("browserVersion", BROWSER_VERSION)
         options.add_experimental_option("excludeSwitches", ["enable-logging"])
 
         with Chrome(options=options) as driver:

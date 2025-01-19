@@ -20,7 +20,7 @@ pdfjp = "pdfjp.cli:main"
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
-[tool.rye]
+[tool.uv]
 managed = true
 dev-dependencies = [
     "mypy>=1.8.0",
@@ -36,12 +36,9 @@ packages = ["src/pdfjp"]
 
 [tool.mypy]
 strict = true
-disallow_untyped_calls = false
 
 [tool.ruff]
-target-version = "py312"
-select = ["ALL"]
-ignore = [
-    "D",       # pydocstyle
-    "ANN1",    # Missing type annotation for 'self' and 'cls'
+extend-select = [
+    "I",  # isort
+    "UP", # pyupgrade
 ]
